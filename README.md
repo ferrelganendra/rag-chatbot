@@ -1,6 +1,11 @@
 # ⚡ DocQ — Production-Grade RAG QA Engine
 
-A production-quality Retrieval-Augmented Generation system with streaming responses, chat UI, and built-in evaluation. Upload documents, ask questions, get cited answers — all running locally with no API keys needed.
+[![CI](https://github.com/ferrelganendra/rag-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/ferrelganendra/rag-chatbot/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+
+Upload documents, ask questions, get cited answers — runs locally with Ollama, or cloud via Groq/Gemini.
 
 ## 🎯 Why This Project Matters (For Recruiters)
 
