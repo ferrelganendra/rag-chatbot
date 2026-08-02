@@ -1,34 +1,27 @@
 """FastAPI server for RAG QA endpoints."""
 
-import sys
 import json
 import time
-import traceback
-from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-# Ensure src/ is on path, run from project root
-SRC = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(SRC))
-
-from retrieval.qa_engine import QAEngine
-from retrieval.searcher import Searcher
 from config import settings
 from metrics import (
-    ask_requests_total,
-    search_requests_total,
-    ask_latency_seconds,
-    retrieval_latency_seconds,
     answer_length_chars,
+    ask_latency_seconds,
+    ask_requests_total,
     get_metrics,
+    search_requests_total,
 )
+from retrieval.qa_engine import QAEngine
+from retrieval.searcher import Searcher
 
 engine: QAEngine | None = None
 searcher: Searcher | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +39,7 @@ async def lifespan(app: FastAPI):
     )
     yield
 
+
 app = FastAPI(
     title="RAG QA Engine",
     description="Retrieval-Augmented Generation API — ask questions over your documents.",
@@ -53,22 +47,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 class QuestionRequest(BaseModel):
     question: str
     top_k: int = 5
+
 
 class AskStreamRequest(BaseModel):
     question: str
     top_k: int = 5
 
+
 class SourceInfo(BaseModel):
     document: str
     score: float
+
 
 class AnswerResponse(BaseModel):
     question: str
     answer: str
     sources: list[SourceInfo]
+
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
@@ -76,6 +75,7 @@ async def value_error_handler(request: Request, exc: ValueError):
         status_code=400,
         content={"error": str(exc)},
     )
+
 
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception):
@@ -87,35 +87,50 @@ async def general_error_handler(request: Request, exc: Exception):
         },
     )
 
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "engine_ready": engine is not None and searcher is not None}
+    return {
+        "status": "ok",
+        "engine_ready": engine is not None and searcher is not None,
+    }
+
 
 @app.get("/metrics")
 async def metrics():
     return Response(content=get_metrics(), media_type="text/plain")
+
 
 @app.post("/ask", response_model=AnswerResponse)
 async def ask(req: QuestionRequest):
     if engine is None:
         return JSONResponse(
             status_code=503,
-            content={"error": "Service not initialized. Check that ChromaDB index exists."},
+            content={
+                "error": "Service not initialized. Check that ChromaDB index exists."
+            },
         )
     t0 = time.perf_counter()
     try:
         result = engine.answer(req.question)
-        ask_latency_seconds.labels(model=engine.model_name).observe(time.perf_counter() - t0)
+        ask_latency_seconds.labels(model=engine.model_name).observe(
+            time.perf_counter() - t0
+        )
         answer_length_chars.observe(len(result["answer"]))
-        ask_requests_total.labels(model=engine.model_name, status="success").inc()
+        ask_requests_total.labels(
+            model=engine.model_name, status="success"
+        ).inc()
         return AnswerResponse(
             question=result["question"],
             answer=result["answer"],
             sources=[SourceInfo(**s) for s in result["sources"]],
         )
     except Exception:
-        ask_requests_total.labels(model=getattr(engine, 'model_name', 'unknown'), status="error").inc()
+        ask_requests_total.labels(
+            model=getattr(engine, "model_name", "unknown"), status="error"
+        ).inc()
         raise
+
 
 @app.post("/ask/stream")
 async def ask_stream(req: AskStreamRequest):
@@ -128,26 +143,42 @@ async def ask_stream(req: AskStreamRequest):
     async def generate():
         for item in engine.answer_stream(req.question):
             if isinstance(item, dict) and item.get("_done"):
-                yield f"data: {json.dumps({'sources': item['sources'], 'model': item['model']})}\n\n"
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {
+                            "sources": item["sources"],
+                            "model": item["model"],
+                        }
+                    )
+                    + "\n\n"
+                )
                 yield "data: [DONE]\n\n"
             else:
-                yield f"data: {json.dumps({'token': item})}\n\n"
+                yield "data: " + json.dumps({"token": item}) + "\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
 
 @app.get("/search")
 async def search(q: str, top_k: int = 5):
     if searcher is None:
         return JSONResponse(
             status_code=503,
-            content={"error": "Service not initialized. Check that ChromaDB index exists."},
+            content={
+                "error": "Service not initialized. Check that ChromaDB index exists."
+            },
         )
     search_requests_total.inc()
     results = searcher.search(q, top_k=top_k)
     return {
         "query": q,
         "results": [
-            {"text": r.text[:300], "source": r.source, "score": round(r.score, 4)}
+            {
+                "text": r.text[:300],
+                "source": r.source,
+                "score": round(r.score, 4),
+            }
             for r in results
         ],
     }
