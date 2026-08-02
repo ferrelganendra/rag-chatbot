@@ -37,7 +37,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 
 ### Engineering
 - **FastAPI Backend**: `/ask`, `/ask/stream`, `/search`, `/health` endpoints with OpenAPI docs
-- **Test Suite**: 18 pytest tests across ingestion, retrieval, API, and evaluation
+- **Test Suite**: 21 pytest tests across ingestion, retrieval, API, and evaluation
 - **Modular Architecture**: separate packages for each pipeline stage
 
 ## 🏗️ Architecture
@@ -157,7 +157,7 @@ with requests.post("http://localhost:8000/ask/stream", json={"question": "Explai
 
 ### Run Tests
 ```bash
-pytest tests/ -v  # 18 tests pass
+pytest tests/ -v  # 21 tests pass
 ```
 
 ### Run Evaluation
