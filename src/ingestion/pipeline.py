@@ -3,7 +3,7 @@
 import logging
 import chromadb
 from pathlib import Path
-from ..config import settings
+from config import settings
 from .loader import load_documents
 from .chunker import chunk_documents, ChunkConfig
 from .embedder import Embedder

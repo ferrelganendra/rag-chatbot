@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from ..config import settings
+from config import settings
 
 @dataclass
 class ChunkConfig:

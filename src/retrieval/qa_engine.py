@@ -6,7 +6,7 @@ from typing import Generator, Any
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 from .searcher import Searcher, SearchResult
-from ..config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
