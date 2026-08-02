@@ -1,4 +1,4 @@
-"""Tests for FastAPI endpoints."""
+"""Tests for FastAPI endpoints (local model, no API key needed)."""
 
 import sys
 from pathlib import Path
@@ -14,7 +14,7 @@ from retrieval.qa_engine import QAEngine
 @pytest.fixture(autouse=True)
 def setup():
     api_mod.searcher = Searcher()
-    api_mod.engine = QAEngine(searcher=api_mod.searcher)
+    api_mod.engine = QAEngine(searcher=api_mod.searcher, model_key="llama3")
 
 
 @pytest.fixture
@@ -46,7 +46,6 @@ def test_ask(client):
 
 
 def test_ask_unknown_handled(client):
-    """Unknown question should return a graceful 'don\'t know' response."""
     r = client.post("/ask", json={"question": "What is the capital of Mars?", "top_k": 3})
     assert r.status_code == 200
     data = r.json()

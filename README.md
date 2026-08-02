@@ -99,7 +99,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 ollama pull llama3.2:3b
 
 # 2. Clone and setup
-git clone https://github.com/ferrelganendra/rag-qa-engine
+git clone https://github.com/ferrelganendra/rag-chatbot
 cd rag-chatbot
 
 # 3. Install dependencies (uv recommended)

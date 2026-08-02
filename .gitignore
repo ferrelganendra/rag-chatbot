@@ -6,3 +6,7 @@ data/chroma/
 .env
 .DS_Store
 *.egg-info/
+
+# Personal agent tooling
+.agents/
+.claude/

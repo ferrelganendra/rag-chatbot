@@ -1,16 +1,15 @@
 """RAG evaluation: retrieval quality + answer quality."""
 
+import time
 from typing import Any
 import numpy as np
 from retrieval.searcher import Searcher, SearchResult
 from retrieval.qa_engine import QAEngine
 
-
 def hit_rate(ground_truth: list[str], retrieved_sources: list[str], k: int = 5) -> float:
     """Fraction of queries where at least one relevant doc in top-k."""
     hits = sum(1 for gt in ground_truth if gt in retrieved_sources[:k])
     return hits / len(ground_truth) if ground_truth else 0.0
-
 
 def mrr(ground_truth: list[str], retrieved_sources: list[str]) -> float:
     """Mean Reciprocal Rank — 1/rank of first relevant document."""
@@ -18,7 +17,6 @@ def mrr(ground_truth: list[str], retrieved_sources: list[str]) -> float:
         if src in ground_truth:
             return 1.0 / (i + 1)
     return 0.0
-
 
 def evaluate_retrieval(
     test_cases: list[dict[str, Any]],
@@ -58,7 +56,6 @@ def evaluate_retrieval(
         "top_k": top_k,
         "per_query": per_query,
     }
-
 
 def evaluate_answer_quality(
     engine: QAEngine,
@@ -127,3 +124,73 @@ def evaluate_answer_quality(
             "per_question": scores,
         }
     return {}
+
+
+def evaluate_latency(
+    test_cases: list[dict[str, Any]],
+    engine: QAEngine,
+) -> dict[str, Any]:
+    """Measure retrieval + generation latency across test queries.
+
+    Times each phase separately using time.perf_counter() and returns
+    average, p50, p95, p99 for retrieval, generation, and total.
+    """
+    from langchain_core.messages import HumanMessage
+
+    retrieval_times: list[float] = []
+    generation_times: list[float] = []
+    total_times: list[float] = []
+    per_query: list[dict[str, Any]] = []
+
+    for tc in test_cases:
+        question = tc["query"] if isinstance(tc, dict) else tc
+
+        t0 = time.perf_counter()
+
+        # Retrieval (search)
+        results = engine.searcher.search(question, top_k=engine.top_k)
+        t1 = time.perf_counter()
+
+        # Generation (LLM call)
+        context = engine._format_context(results)
+        prompt_text = (
+            f"Context documents:\n{context}\n\n"
+            f"Question: {question}"
+        )
+        engine.llm.invoke([HumanMessage(content=prompt_text)])
+        t2 = time.perf_counter()
+
+        retrieval_ms = (t1 - t0) * 1000
+        generation_ms = (t2 - t1) * 1000
+        total_ms = (t2 - t0) * 1000
+
+        retrieval_times.append(retrieval_ms)
+        generation_times.append(generation_ms)
+        total_times.append(total_ms)
+
+        per_query.append({
+            "query": question,
+            "retrieval_ms": round(retrieval_ms, 2),
+            "generation_ms": round(generation_ms, 2),
+            "total_ms": round(total_ms, 2),
+        })
+
+    def _pct(data: list[float], p: float) -> float:
+        return float(np.percentile(data, p))
+
+    return {
+        "num_queries": len(test_cases),
+        "avg_retrieval_ms": round(float(np.mean(retrieval_times)), 2),
+        "avg_generation_ms": round(float(np.mean(generation_times)), 2),
+        "avg_total_ms": round(float(np.mean(total_times)), 2),
+        "p50_retrieval_ms": round(_pct(retrieval_times, 50), 2),
+        "p50_generation_ms": round(_pct(generation_times, 50), 2),
+        "p50_total_ms": round(_pct(total_times, 50), 2),
+        "p95_retrieval_ms": round(_pct(retrieval_times, 95), 2),
+        "p95_generation_ms": round(_pct(generation_times, 95), 2),
+        "p95_total_ms": round(_pct(total_times, 95), 2),
+        "p99_retrieval_ms": round(_pct(retrieval_times, 99), 2),
+        "p99_generation_ms": round(_pct(generation_times, 99), 2),
+        "p99_total_ms": round(_pct(total_times, 99), 2),
+        "per_query": per_query,
+    }

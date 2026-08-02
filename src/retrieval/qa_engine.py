@@ -1,7 +1,9 @@
-"""QA engine: combine retrieved context with LLM to generate answers — with streaming."""
+"""QA engine: multi-LLM support (Local Ollama + Cloud Groq + Cloud Gemini) with streaming."""
 
-from langchain_ollama import ChatOllama
+import os
+from typing import Generator, Any
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage
 from .searcher import Searcher, SearchResult
 
 SYSTEM_PROMPT = (
@@ -14,29 +16,82 @@ SYSTEM_PROMPT = (
     "5. Be concise but complete — don't leave the user needing to ask again."
 )
 
-RAG_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMPT),
-    ("user", (
-        "Context documents:\n{context}\n\nQuestion: {question}"
-    )),
-])
+MODELS = {
+    "groq-70b": {
+        "name": "Groq Llama 3.3 70B (Cloud)",
+        "provider": "groq",
+        "model": "llama-3.3-70b-versatile",
+    },
+    "groq-8b": {
+        "name": "Groq Llama 3.1 8B (Cloud)",
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant",
+    },
+    "gemini-flash": {
+        "name": "Gemini 2.0 Flash (Cloud)",
+        "provider": "google",
+        "model": "gemini-2.0-flash",
+    },
+    "llama3": {
+        "name": "Llama 3.2 3B (Local)",
+        "provider": "ollama",
+        "model": "llama3.2:3b",
+    },
+}
 
 
 class QAEngine:
     def __init__(
         self,
         searcher: Searcher | None = None,
-        model_name: str = "llama3.2:3b",
+        model_key: str = "groq-70b",
         top_k: int = 5,
         temperature: float = 0.3,
+        groq_api_key: str | None = None,
+        google_api_key: str | None = None,
     ):
         self.searcher = searcher or Searcher()
-        self.llm = ChatOllama(
-            model=model_name,
-            temperature=temperature,
-            num_predict=500,
-        )
+        self.model_key = model_key
         self.top_k = top_k
+        self.temperature = temperature
+        self.groq_api_key = groq_api_key or os.environ.get("GROQ_API_KEY")
+        self.google_api_key = google_api_key or os.environ.get("GOOGLE_API_KEY")
+        self._llm = None
+        self._init_llm()
+
+    def _init_llm(self):
+        cfg = MODELS[self.model_key]
+        if cfg["provider"] == "ollama":
+            from langchain_ollama import ChatOllama
+            self._llm = ChatOllama(model=cfg["model"], temperature=self.temperature, num_predict=800)
+        elif cfg["provider"] == "groq":
+            from langchain_groq import ChatGroq
+            self._llm = ChatGroq(
+                model=cfg["model"],
+                temperature=self.temperature,
+                api_key=self.groq_api_key,
+                max_tokens=800,
+            )
+        elif cfg["provider"] == "google":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            self._llm = ChatGoogleGenerativeAI(
+                model=cfg["model"],
+                temperature=self.temperature,
+                google_api_key=self.google_api_key,
+                max_output_tokens=800,
+            )
+
+    def switch_model(self, model_key: str):
+        self.model_key = model_key
+        self._init_llm()
+
+    @property
+    def llm(self):
+        return self._llm
+
+    @property
+    def model_name(self) -> str:
+        return MODELS[self.model_key]["name"]
 
     def _format_context(self, results: list[SearchResult]) -> str:
         parts = []
@@ -45,32 +100,46 @@ class QAEngine:
         return "\n\n---\n\n".join(parts)
 
     def answer(self, question: str) -> dict:
-        """Retrieve context → generate answer. Returns dict with answer, sources, context."""
         results = self.searcher.search(question, top_k=self.top_k)
         context = self._format_context(results)
 
-        chain = RAG_PROMPT | self.llm
-        response = chain.invoke({"context": context, "question": question})
+        prompt_text = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"Context documents:\n{context}\n\n"
+            f"Question: {question}"
+        )
+        response = self.llm.invoke([HumanMessage(content=prompt_text)])
 
         return {
             "question": question,
             "answer": response.content,
+            "model": self.model_name,
             "sources": [{"document": r.source, "score": round(r.score, 4)} for r in results],
             "context_chunks": [r.text[:300] + "..." for r in results],
         }
 
-    def answer_stream(self, question: str):
-        """Retrieve context → stream answer tokens. Yields tokens and finally sources."""
+    def answer_stream(self, question: str) -> Generator[Any, None, None]:
         results = self.searcher.search(question, top_k=self.top_k)
         context = self._format_context(results)
 
-        chain = RAG_PROMPT | self.llm
+        prompt_text = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"Context documents:\n{context}\n\n"
+            f"Question: {question}"
+        )
+
         tokens = []
-        for chunk in chain.stream({"context": context, "question": question}):
+        for chunk in self.llm.stream([HumanMessage(content=prompt_text)]):
             token = chunk.content if hasattr(chunk, "content") else str(chunk)
             tokens.append(token)
             yield token
 
         sources = [{"document": r.source, "score": round(r.score, 4)} for r in results]
         chunks = [r.text[:300] + "..." for r in results]
-        yield {"_done": True, "sources": sources, "context_chunks": chunks, "full_answer": "".join(tokens)}
+        yield {
+            "_done": True,
+            "sources": sources,
+            "context_chunks": chunks,
+            "full_answer": "".join(tokens),
+            "model": self.model_name,
+        }
