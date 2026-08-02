@@ -5,6 +5,7 @@ from typing import Generator, Any
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 from .searcher import Searcher, SearchResult
+from ..config import settings
 
 SYSTEM_PROMPT = (
     "You are a precise technical assistant. Answer the user's question using the provided context documents. "
@@ -39,21 +40,20 @@ MODELS = {
     },
 }
 
-
 class QAEngine:
     def __init__(
         self,
         searcher: Searcher | None = None,
-        model_key: str = "groq-70b",
-        top_k: int = 5,
-        temperature: float = 0.3,
+        model_key: str | None = None,
+        top_k: int | None = None,
+        temperature: float | None = None,
         groq_api_key: str | None = None,
         google_api_key: str | None = None,
     ):
         self.searcher = searcher or Searcher()
-        self.model_key = model_key
-        self.top_k = top_k
-        self.temperature = temperature
+        self.model_key = model_key or settings.default_model_key
+        self.top_k = top_k if top_k is not None else settings.default_top_k
+        self.temperature = temperature if temperature is not None else settings.temperature
         self.groq_api_key = groq_api_key or os.environ.get("GROQ_API_KEY")
         self.google_api_key = google_api_key or os.environ.get("GOOGLE_API_KEY")
         self._llm = None
@@ -63,14 +63,18 @@ class QAEngine:
         cfg = MODELS[self.model_key]
         if cfg["provider"] == "ollama":
             from langchain_ollama import ChatOllama
-            self._llm = ChatOllama(model=cfg["model"], temperature=self.temperature, num_predict=800)
+            self._llm = ChatOllama(
+                model=cfg["model"],
+                temperature=self.temperature,
+                num_predict=settings.max_tokens,
+            )
         elif cfg["provider"] == "groq":
             from langchain_groq import ChatGroq
             self._llm = ChatGroq(
                 model=cfg["model"],
                 temperature=self.temperature,
                 api_key=self.groq_api_key,
-                max_tokens=800,
+                max_tokens=settings.max_tokens,
             )
         elif cfg["provider"] == "google":
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -78,7 +82,7 @@ class QAEngine:
                 model=cfg["model"],
                 temperature=self.temperature,
                 google_api_key=self.google_api_key,
-                max_output_tokens=800,
+                max_output_tokens=settings.max_tokens,
             )
 
     def switch_model(self, model_key: str):

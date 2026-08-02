@@ -2,8 +2,8 @@
 
 import chromadb
 from dataclasses import dataclass
-from ingestion.embedder import Embedder
-
+from ..ingestion.embedder import Embedder
+from ..config import settings
 
 @dataclass
 class SearchResult:
@@ -11,17 +11,26 @@ class SearchResult:
     source: str
     score: float
 
-
 class Searcher:
     def __init__(
         self,
-        chroma_path: str = "data/chroma",
-        collection_name: str = "rag_docs",
-        model_name: str = "all-MiniLM-L6-v2",
+        chroma_path: str | None = None,
+        collection_name: str | None = None,
+        model_name: str | None = None,
     ):
-        self.client = chromadb.PersistentClient(path=chroma_path)
-        self.collection = self.client.get_collection(collection_name)
-        self.embedder = Embedder(model_name=model_name)
+        self.client = chromadb.PersistentClient(
+            path=chroma_path or settings.chroma_path
+        )
+        try:
+            self.collection = self.client.get_collection(
+                collection_name or settings.collection_name
+            )
+        except Exception:
+            raise ValueError(
+                f"Collection '{collection_name or settings.collection_name}' not found. "
+                f"Run ingestion first."
+            )
+        self.embedder = Embedder(model_name=model_name or settings.embedding_model)
 
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         """Retrieve top-k most relevant chunks for a query."""
@@ -37,7 +46,7 @@ class Searcher:
             results["metadatas"][0],
             results["distances"][0],
         ):
-            # ChromaDB cosine distance → similarity: 2 - dist (approx), or just use dist
+            # ChromaDB cosine distance → similarity: 1 - dist
             search_results.append(
                 SearchResult(text=doc, source=meta["source"], score=1.0 - dist)
             )

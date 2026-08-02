@@ -9,6 +9,7 @@ sys.path.insert(0, str(SRC))
 
 from retrieval.qa_engine import QAEngine, MODELS
 from retrieval.searcher import Searcher
+from config import settings
 
 st.set_page_config(
     page_title="DocQ — RAG QA Engine",
@@ -243,12 +244,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Init ──────────────────────────────────────────────────────────
-DEFAULT_MODEL = "groq-70b"
-
 if "engine" not in st.session_state:
     st.session_state.engine = QAEngine(
-        searcher=Searcher(),
-        model_key=DEFAULT_MODEL,
+        searcher=Searcher(
+            chroma_path=settings.chroma_path,
+            collection_name=settings.collection_name,
+            model_name=settings.embedding_model,
+        ),
+        model_key=settings.default_model_key,
         groq_api_key=os.environ.get("GROQ_API_KEY"),
     )
 if "messages" not in st.session_state:

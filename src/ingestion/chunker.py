@@ -2,14 +2,13 @@
 
 from dataclasses import dataclass
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
+from ..config import settings
 
 @dataclass
 class ChunkConfig:
-    chunk_size: int = 500
-    chunk_overlap: int = 50
+    chunk_size: int = settings.chunk_size
+    chunk_overlap: int = settings.chunk_overlap
     separators: tuple = ("\n\n", "\n", ". ", " ", "")
-
 
 def chunk_documents(
     documents: list[dict[str, str]],

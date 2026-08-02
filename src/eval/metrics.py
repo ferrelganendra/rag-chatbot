@@ -1,10 +1,13 @@
 """RAG evaluation: retrieval quality + answer quality."""
 
 import time
+import json
 from typing import Any
 import numpy as np
 from retrieval.searcher import Searcher, SearchResult
 from retrieval.qa_engine import QAEngine
+from config import settings
+
 
 def hit_rate(ground_truth: list[str], retrieved_sources: list[str], k: int = 5) -> float:
     """Fraction of queries where at least one relevant doc in top-k."""
@@ -57,6 +60,22 @@ def evaluate_retrieval(
         "per_query": per_query,
     }
 
+def _get_judge_llm():
+    """Dynamic judge LLM based on settings."""
+    if settings.judge_provider == "ollama":
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=settings.judge_model, temperature=0.0)
+    elif settings.judge_provider == "groq":
+        from langchain_groq import ChatGroq
+        import os
+        return ChatGroq(
+            model=settings.judge_model,
+            temperature=0.0,
+            api_key=os.environ.get("GROQ_API_KEY"),
+        )
+    else:
+        raise ValueError(f"Unknown judge_provider: {settings.judge_provider}")
+
 def evaluate_answer_quality(
     engine: QAEngine,
     test_cases: list[dict[str, Any]],
@@ -76,19 +95,17 @@ def evaluate_answer_quality(
         "Answer: {answer}"
     )
 
-    import json
     scores = []
     for tc in test_cases:
         result = engine.answer(tc["query"])
         prompt = judge_prompt.format(
-            context=result["context_chunks"][:3],
+            context=str(result["context_chunks"][:3]),
             question=tc["query"],
             answer=result["answer"],
         )
 
         try:
-            from langchain_ollama import ChatOllama
-            judge_llm = ChatOllama(model="qwen3:0.6b", temperature=0.0)
+            judge_llm = _get_judge_llm()
             from langchain_core.messages import HumanMessage
             response = judge_llm.invoke([HumanMessage(content=prompt)])
 
@@ -124,7 +141,6 @@ def evaluate_answer_quality(
             "per_question": scores,
         }
     return {}
-
 
 def evaluate_latency(
     test_cases: list[dict[str, Any]],

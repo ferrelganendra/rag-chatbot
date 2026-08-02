@@ -153,6 +153,22 @@ print(f'Hit Rate@5: {r[\"hit_rate\"]}, MRR: {r[\"mrr\"]}')
 "
 ```
 
+### Development
+
+```bash
+# Setup
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+ollama pull llama3.2:3b
+
+# Run pipeline
+python src/ingestion/run.py
+
+# Tests + watch
+pytest tests/ -v
+# OR: ptw tests/ -- -v   (needs: pip install pytest-watch)
+```
+
 ## 📁 Project Structure
 
 ```
@@ -175,10 +191,10 @@ rag-chatbot/
 
 - [ ] **Hybrid Search**: BM25 keyword search + dense retrieval for better recall
 - [ ] **Re-ranking**: Cross-encoder to refine top-10 into top-3
-- [ ] **PDF Support**: PyMuPDF integration for PDF ingestion
+- [x] **PDF Support**: PyMuPDF integration for PDF ingestion
 - [ ] **Observability**: LangSmith tracing or custom event logging
 - [ ] **Multi-Model**: Config toggle between local (llama3.2) and cloud (GPT-4, Claude)
-- [ ] **Docker**: Containerized with docker-compose (Ollama + ChromaDB + FastAPI + Streamlit)
+- [x] **Docker**: Containerized with docker-compose (FastAPI + Streamlit)
 - [ ] **Rate Limiting**: API protection with token bucket algorithm
 - [ ] **Auth**: API key authentication for production endpoints
 
