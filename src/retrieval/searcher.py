@@ -2,7 +2,7 @@
 
 import chromadb
 from dataclasses import dataclass
-from ..ingestion.embedder import Embedder
+from ingestion.embedder import Embedder
 from config import settings
 
 @dataclass

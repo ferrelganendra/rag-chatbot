@@ -4,9 +4,9 @@ import logging
 import chromadb
 from pathlib import Path
 from config import settings
-from .loader import load_documents
-from .chunker import chunk_documents, ChunkConfig
-from .embedder import Embedder
+from ingestion.loader import load_documents
+from ingestion.chunker import chunk_documents, ChunkConfig
+from ingestion.embedder import Embedder
 
 logger = logging.getLogger(__name__)
 
