@@ -21,3 +21,4 @@ tenacity>=9.0.0
 
 # Dev tools (optional — for pre-commit)
 # pip install pre-commit && pre-commit install
+prometheus-client>=0.21.0
