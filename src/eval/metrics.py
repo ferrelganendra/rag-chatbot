@@ -1,12 +1,18 @@
 """RAG evaluation: retrieval quality + answer quality."""
 
-import time
+from __future__ import annotations
+
 import json
-from typing import Any
+import time
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
-from retrieval.searcher import Searcher, SearchResult
-from retrieval.qa_engine import QAEngine
+
 from config import settings
+
+if TYPE_CHECKING:
+    from retrieval.qa_engine import QAEngine
+    from retrieval.searcher import Searcher
 
 
 def hit_rate(ground_truth: list[str], retrieved_sources: list[str], k: int = 5) -> float:
@@ -66,8 +72,9 @@ def _get_judge_llm():
         from langchain_ollama import ChatOllama
         return ChatOllama(model=settings.judge_model, temperature=0.0)
     elif settings.judge_provider == "groq":
-        from langchain_groq import ChatGroq
         import os
+
+        from langchain_groq import ChatGroq
         return ChatGroq(
             model=settings.judge_model,
             temperature=0.0,
@@ -132,7 +139,8 @@ def evaluate_answer_quality(
 
     if scores:
         valid = [s for s in scores if isinstance(s.get("relevance"), (int, float)) and s["relevance"] > 0]
-        avg = lambda key: round(np.mean([s[key] for s in valid]), 2) if valid else -1
+        def avg(key):
+            return round(np.mean([s[key] for s in valid]), 2) if valid else -1
         return {
             "avg_relevance": avg("relevance"),
             "avg_groundedness": avg("groundedness"),

@@ -1,6 +1,7 @@
 """Load documents from various formats."""
 
 from pathlib import Path
+
 import fitz  # pymupdf
 
 

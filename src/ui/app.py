@@ -1,15 +1,17 @@
 """Streamlit UI — multi-model RAG with Groq 70B (default), Groq 8B, Llama local."""
 
-import os, sys
+import os
+import sys
 from pathlib import Path
+
 import streamlit as st
 
 SRC = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SRC))
 
-from retrieval.qa_engine import QAEngine, MODELS
-from retrieval.searcher import Searcher
-from config import settings
+from config import settings  # noqa: E402
+from retrieval.qa_engine import MODELS, QAEngine  # noqa: E402
+from retrieval.searcher import Searcher  # noqa: E402
 
 st.set_page_config(
     page_title="DocQ — RAG QA Engine",
@@ -379,7 +381,7 @@ for msg in st.session_state.messages:
             # Source cards with score bars, scrollable
             if msg.get("sources"):
                 source_html = '<div style="margin-top:0.8rem;">'
-                source_html += '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.25);margin-bottom:0.3rem;">📖 Sources</div>'
+                source_html += '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.25);margin-bottom:0.3rem;">📖 Sources</div>'  # noqa: E501
                 source_html += '<div style="max-height:280px;overflow-y:auto;padding-right:4px;">'
                 for s in msg["sources"]:
                     score = s["score"]
@@ -403,7 +405,7 @@ for msg in st.session_state.messages:
                         f'<span class="doc-score">{s["score"]:.3f}</span>'
                         f'</div>'
                         f'<div class="doc-preview">{s["preview"]}</div>'
-                        f'<div class="score-bar"><div class="score-bar-fill" style="width:{bar_width};background:{bar_color};"></div></div>'
+                        f'<div class="score-bar"><div class="score-bar-fill" style="width:{bar_width};background:{bar_color};"></div></div>'  # noqa: E501
                         f'</div>'
                     )
                 source_html += '</div></div>'
@@ -477,7 +479,7 @@ if prompt := st.chat_input("Ask a question..."):
                     f'<span class="doc-score">{s["score"]:.3f}</span>'
                     f'</div>'
                     f'<div class="doc-preview">{preview}</div>'
-                    f'<div class="score-bar"><div class="score-bar-fill" style="width:{bar_width};background:{bar_color};"></div></div>'
+                    f'<div class="score-bar"><div class="score-bar-fill" style="width:{bar_width};background:{bar_color};"></div></div>'  # noqa: E501
                     f'</div>'
                 )
 
@@ -485,7 +487,7 @@ if prompt := st.chat_input("Ask a question..."):
         if source_html:
             final_html += (
                 '<div style="margin-top:0.8rem;">'
-                '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.25);margin-bottom:0.3rem;">📖 Sources</div>'
+                '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.25);margin-bottom:0.3rem;">📖 Sources</div>'  # noqa: E501
                 f'<div style="max-height:280px;overflow-y:auto;padding-right:4px;">{source_html}</div>'
                 '</div>'
             )

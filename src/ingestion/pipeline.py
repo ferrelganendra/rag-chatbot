@@ -1,12 +1,13 @@
 """End-to-end ingestion pipeline: load → chunk → embed → index."""
 
 import logging
+
 import chromadb
-from pathlib import Path
+
 from config import settings
-from ingestion.loader import load_documents
-from ingestion.chunker import chunk_documents, ChunkConfig
+from ingestion.chunker import chunk_documents
 from ingestion.embedder import Embedder
+from ingestion.loader import load_documents
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,10 @@ def run_ingestion(
     client = chromadb.PersistentClient(path=chroma_path_val)
 
     # Recreate collection for fresh index
-    try:
+    import contextlib
+
+    with contextlib.suppress(Exception):
         client.delete_collection(collection_name_val)
-    except Exception:
-        pass
     collection = client.create_collection(
         name=collection_name_val,
         metadata={"embedding_model": settings.embedding_model, "embedding_dim": embedder.dim},

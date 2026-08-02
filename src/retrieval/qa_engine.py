@@ -1,13 +1,14 @@
 """QA engine: multi-LLM support (Local Ollama + Cloud Groq + Cloud Gemini) with streaming."""
 
-import os
 import logging
-from typing import Generator, Any
-from langchain_core.prompts import ChatPromptTemplate
+import os
+from typing import Any, Generator
+
 from langchain_core.messages import HumanMessage
-from retrieval.searcher import Searcher, SearchResult
+
 from config import settings
 from resilience import with_retry
+from retrieval.searcher import Searcher, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class QAEngine:
         self.groq_api_key = groq_api_key or os.environ.get("GROQ_API_KEY")
         self.google_api_key = google_api_key or os.environ.get("GOOGLE_API_KEY")
         self._llm = None
-        if not self.groq_api_key and not self.google_api_key and self.model_key in ("groq-70b", "groq-8b", "gemini-flash"):
+        needs_cloud = self.model_key in ("groq-70b", "groq-8b", "gemini-flash")
+        if not self.groq_api_key and not self.google_api_key and needs_cloud:
             logger.warning(
                 "No API keys found for %s. Auto-detecting available models...",
                 self.model_key,

@@ -1,10 +1,13 @@
 """Tests for FastAPI endpoints — mocked engine for CI (no Ollama needed)."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
-from retrieval.searcher import SearchResult
+
 import api.main as api_mod
+from retrieval.searcher import SearchResult
+
 
 @pytest.fixture(autouse=True)
 def setup():

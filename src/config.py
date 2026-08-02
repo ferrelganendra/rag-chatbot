@@ -1,7 +1,8 @@
 """Centralized configuration for DocQ RAG engine."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+
 
 @dataclass
 class Settings:
@@ -36,7 +37,6 @@ class Settings:
     def project_root(self) -> Path:
         """Find project root (where src/ lives)."""
         return Path(__file__).resolve().parent.parent
-
 
 # Singleton
 settings = Settings()

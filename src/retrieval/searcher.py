@@ -1,10 +1,13 @@
 """Semantic search over ChromaDB with configurable top-k."""
 
-import chromadb
 from dataclasses import dataclass
-from ingestion.embedder import Embedder
+
+import chromadb
+
 from config import settings
+from ingestion.embedder import Embedder
 from resilience import with_retry
+
 
 @dataclass
 class SearchResult:
@@ -26,11 +29,11 @@ class Searcher:
             self.collection = self.client.get_collection(
                 collection_name or settings.collection_name
             )
-        except Exception:
+        except Exception as err:
             raise ValueError(
                 f"Collection '{collection_name or settings.collection_name}' not found. "
                 f"Run ingestion first."
-            )
+            ) from err
         self.embedder = Embedder(model_name=model_name or settings.embedding_model)
 
     @with_retry
@@ -47,6 +50,7 @@ class Searcher:
             results["documents"][0],
             results["metadatas"][0],
             results["distances"][0],
+            strict=False,
         ):
             # ChromaDB cosine distance -> similarity: 1 - dist
             search_results.append(

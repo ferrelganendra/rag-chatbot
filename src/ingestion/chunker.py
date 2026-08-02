@@ -1,8 +1,11 @@
 """Document chunking with configurable strategy."""
 
 from dataclasses import dataclass
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from config import settings
+
 
 @dataclass
 class ChunkConfig:

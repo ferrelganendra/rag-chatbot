@@ -1,6 +1,6 @@
 """Prometheus metrics for RAG QA Engine observability."""
 
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 
 # Request metrics
 ask_requests_total = Counter(

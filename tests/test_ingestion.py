@@ -1,9 +1,10 @@
 """Tests for ingestion pipeline."""
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+from ingestion.chunker import ChunkConfig, chunk_documents
 from ingestion.loader import load_documents
-from ingestion.chunker import chunk_documents, ChunkConfig
 
 
 def test_load_markdown():
