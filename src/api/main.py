@@ -1,12 +1,13 @@
 """FastAPI server for RAG QA endpoints."""
 
 import sys
+import json
 import traceback
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 # Ensure src/ is on path, run from project root
@@ -47,6 +48,10 @@ class QuestionRequest(BaseModel):
     question: str
     top_k: int = 5
 
+class AskStreamRequest(BaseModel):
+    question: str
+    top_k: int = 5
+
 class SourceInfo(BaseModel):
     document: str
     score: float
@@ -55,7 +60,6 @@ class AnswerResponse(BaseModel):
     question: str
     answer: str
     sources: list[SourceInfo]
-
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
@@ -74,11 +78,9 @@ async def general_error_handler(request: Request, exc: Exception):
         },
     )
 
-
 @app.get("/health")
 async def health():
     return {"status": "ok", "engine_ready": engine is not None and searcher is not None}
-
 
 @app.post("/ask", response_model=AnswerResponse)
 async def ask(req: QuestionRequest):
@@ -93,6 +95,24 @@ async def ask(req: QuestionRequest):
         answer=result["answer"],
         sources=[SourceInfo(**s) for s in result["sources"]],
     )
+
+@app.post("/ask/stream")
+async def ask_stream(req: AskStreamRequest):
+    if engine is None:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Service not initialized."},
+        )
+
+    async def generate():
+        for item in engine.answer_stream(req.question):
+            if isinstance(item, dict) and item.get("_done"):
+                yield f"data: {json.dumps({'sources': item['sources'], 'model': item['model']})}\n\n"
+                yield "data: [DONE]\n\n"
+            else:
+                yield f"data: {json.dumps({'token': item})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/search")
 async def search(q: str, top_k: int = 5):

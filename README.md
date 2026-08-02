@@ -31,7 +31,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 - **Live Metrics**: real-time document and chunk counts in sidebar
 
 ### Engineering
-- **FastAPI Backend**: `/ask`, `/search`, `/health` endpoints with OpenAPI docs
+- **FastAPI Backend**: `/ask`, `/ask/stream`, `/search`, `/health` endpoints with OpenAPI docs
 - **Test Suite**: 18 pytest tests across ingestion, retrieval, API, and evaluation
 - **Modular Architecture**: separate packages for each pipeline stage
 
@@ -132,9 +132,22 @@ import requests
 r = requests.get("http://localhost:8000/search", params={"q": "What is RAG?", "top_k": 5})
 print(r.json())
 
-# Ask
+# Ask (full response)
 r = requests.post("http://localhost:8000/ask", json={"question": "Explain cosine similarity"})
 print(r.json())
+
+# Streaming ask (SSE)
+import requests, json
+
+with requests.post("http://localhost:8000/ask/stream", json={"question": "Explain cosine similarity"}, stream=True) as r:
+    for line in r.iter_lines():
+        if line:
+            line = line.decode()
+            if line.startswith("data: "):
+                data = line[6:]
+                if data == "[DONE]":
+                    break
+                print(json.loads(data).get("token", ""), end="", flush=True)
 ```
 
 ### Run Tests
@@ -177,7 +190,7 @@ rag-chatbot/
 │   ├── ingestion/       # loader.py, chunker.py, embedder.py, pipeline.py, run.py
 │   ├── retrieval/       # searcher.py, qa_engine.py (streaming)
 │   ├── eval/            # metrics.py (Hit Rate, MRR, LLM-judge), test_queries.py
-│   ├── api/             # main.py (FastAPI: /ask, /search, /health)
+│   ├── api/             # main.py (FastAPI: /ask, /ask/stream, /search, /health)
 │   └── ui/              # app.py (Streamlit chat interface)
 ├── data/
 │   ├── documents/       # 5 sample technical documents

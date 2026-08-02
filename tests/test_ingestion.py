@@ -1,9 +1,6 @@
 """Tests for ingestion pipeline."""
 
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 import tempfile
 from ingestion.loader import load_documents
 from ingestion.chunker import chunk_documents, ChunkConfig

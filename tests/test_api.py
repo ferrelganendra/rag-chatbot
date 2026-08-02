@@ -1,9 +1,5 @@
 """Tests for FastAPI endpoints (local model, no API key needed)."""
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 import pytest
 from fastapi.testclient import TestClient
 import api.main as api_mod

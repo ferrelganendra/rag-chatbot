@@ -1,9 +1,5 @@
 """Tests for retrieval pipeline."""
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from retrieval.searcher import Searcher, SearchResult
 
 

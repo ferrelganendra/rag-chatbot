@@ -1,11 +1,14 @@
 """QA engine: multi-LLM support (Local Ollama + Cloud Groq + Cloud Gemini) with streaming."""
 
 import os
+import logging
 from typing import Generator, Any
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 from .searcher import Searcher, SearchResult
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "You are a precise technical assistant. Answer the user's question using the provided context documents. "
@@ -57,7 +60,37 @@ class QAEngine:
         self.groq_api_key = groq_api_key or os.environ.get("GROQ_API_KEY")
         self.google_api_key = google_api_key or os.environ.get("GOOGLE_API_KEY")
         self._llm = None
+        if not self.groq_api_key and not self.google_api_key and self.model_key in ("groq-70b", "groq-8b", "gemini-flash"):
+            logger.warning(
+                "No API keys found for %s. Auto-detecting available models...",
+                self.model_key,
+            )
+            self.model_key = self._pick_best_model()
         self._init_llm()
+
+    def _pick_best_model(self) -> str:
+        """Auto-select best available model based on API keys and local availability."""
+        has_groq = bool(self.groq_api_key)
+        has_google = bool(self.google_api_key)
+
+        # Check if ollama is reachable
+        try:
+            import httpx
+            r = httpx.get("http://localhost:11434/api/tags", timeout=2)
+            has_ollama = r.status_code == 200
+        except Exception:
+            has_ollama = False
+
+        if has_groq:
+            return "groq-70b"
+        if has_google:
+            return "gemini-flash"
+        if has_ollama:
+            return "llama3"
+        raise RuntimeError(
+            "No LLM backend available. Set GROQ_API_KEY or GOOGLE_API_KEY, "
+            "or ensure Ollama is running locally."
+        )
 
     def _init_llm(self):
         cfg = MODELS[self.model_key]
