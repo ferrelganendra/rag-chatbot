@@ -10,3 +10,6 @@ data/chroma/
 # Personal agent tooling
 .agents/
 .claude/
+*.pdf
+*.bin
+data/chroma/
