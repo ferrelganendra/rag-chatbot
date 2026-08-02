@@ -3,11 +3,17 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
+from retrieval.searcher import SearchResult
 import api.main as api_mod
 
 @pytest.fixture(autouse=True)
 def setup():
     mock_searcher = MagicMock()
+    mock_searcher.search.return_value = [
+        SearchResult(text="chunk text about transformers...", source="transformer-architecture.md", score=0.95),
+        SearchResult(text="chunk text about attention...", source="attention-is-all-you-need.md", score=0.87),
+        SearchResult(text="chunk text about embeddings...", source="vector-databases.md", score=0.72),
+    ]
     mock_engine = MagicMock()
     mock_engine.answer.return_value = {
         "question": "What is RAG?",
