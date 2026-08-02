@@ -37,3 +37,17 @@ jobs:
           assert r['hit_rate'] >= 0.8, f'Hit rate too low: {r[\"hit_rate\"]}'
           assert r['mrr'] >= 0.8, f'MRR too low: {r[\"mrr\"]}'
           "
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run ruff lint + format check
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "check --select E,F,I,B,SIM"

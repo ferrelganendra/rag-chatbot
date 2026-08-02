@@ -7,6 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 from retrieval.searcher import Searcher, SearchResult
 from config import settings
+from resilience import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,7 @@ class QAEngine:
             parts.append(f"[{i+1}. {r.source}]\n{r.text}")
         return "\n\n---\n\n".join(parts)
 
+    @with_retry
     def answer(self, question: str) -> dict:
         results = self.searcher.search(question, top_k=self.top_k)
         context = self._format_context(results)
@@ -155,6 +157,7 @@ class QAEngine:
             "context_chunks": [r.text[:300] + "..." for r in results],
         }
 
+    @with_retry
     def answer_stream(self, question: str) -> Generator[Any, None, None]:
         results = self.searcher.search(question, top_k=self.top_k)
         context = self._format_context(results)

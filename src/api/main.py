@@ -2,11 +2,12 @@
 
 import sys
 import json
+import time
 import traceback
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -17,6 +18,14 @@ sys.path.insert(0, str(SRC))
 from retrieval.qa_engine import QAEngine
 from retrieval.searcher import Searcher
 from config import settings
+from metrics import (
+    ask_requests_total,
+    search_requests_total,
+    ask_latency_seconds,
+    retrieval_latency_seconds,
+    answer_length_chars,
+    get_metrics,
+)
 
 engine: QAEngine | None = None
 searcher: Searcher | None = None
@@ -82,6 +91,10 @@ async def general_error_handler(request: Request, exc: Exception):
 async def health():
     return {"status": "ok", "engine_ready": engine is not None and searcher is not None}
 
+@app.get("/metrics")
+async def metrics():
+    return Response(content=get_metrics(), media_type="text/plain")
+
 @app.post("/ask", response_model=AnswerResponse)
 async def ask(req: QuestionRequest):
     if engine is None:
@@ -89,12 +102,20 @@ async def ask(req: QuestionRequest):
             status_code=503,
             content={"error": "Service not initialized. Check that ChromaDB index exists."},
         )
-    result = engine.answer(req.question)
-    return AnswerResponse(
-        question=result["question"],
-        answer=result["answer"],
-        sources=[SourceInfo(**s) for s in result["sources"]],
-    )
+    t0 = time.perf_counter()
+    try:
+        result = engine.answer(req.question)
+        ask_latency_seconds.labels(model=engine.model_name).observe(time.perf_counter() - t0)
+        answer_length_chars.observe(len(result["answer"]))
+        ask_requests_total.labels(model=engine.model_name, status="success").inc()
+        return AnswerResponse(
+            question=result["question"],
+            answer=result["answer"],
+            sources=[SourceInfo(**s) for s in result["sources"]],
+        )
+    except Exception:
+        ask_requests_total.labels(model=getattr(engine, 'model_name', 'unknown'), status="error").inc()
+        raise
 
 @app.post("/ask/stream")
 async def ask_stream(req: AskStreamRequest):
@@ -121,6 +142,7 @@ async def search(q: str, top_k: int = 5):
             status_code=503,
             content={"error": "Service not initialized. Check that ChromaDB index exists."},
         )
+    search_requests_total.inc()
     results = searcher.search(q, top_k=top_k)
     return {
         "query": q,

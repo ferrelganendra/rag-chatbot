@@ -4,6 +4,7 @@ import chromadb
 from dataclasses import dataclass
 from ingestion.embedder import Embedder
 from config import settings
+from resilience import with_retry
 
 @dataclass
 class SearchResult:
@@ -32,6 +33,7 @@ class Searcher:
             )
         self.embedder = Embedder(model_name=model_name or settings.embedding_model)
 
+    @with_retry
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         """Retrieve top-k most relevant chunks for a query."""
         query_embedding = self.embedder.embed_query(query)
@@ -46,7 +48,7 @@ class Searcher:
             results["metadatas"][0],
             results["distances"][0],
         ):
-            # ChromaDB cosine distance → similarity: 1 - dist
+            # ChromaDB cosine distance -> similarity: 1 - dist
             search_results.append(
                 SearchResult(text=doc, source=meta["source"], score=1.0 - dist)
             )
