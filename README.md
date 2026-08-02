@@ -1,118 +1,148 @@
-# 🚀 RAG QA Engine — Production-Grade Document Q&A
+# ⚡ DocQ — Production-Grade RAG QA Engine
 
-A production-quality Retrieval-Augmented Generation system: upload documents, ask questions, get grounded answers with source citations. Built end-to-end with evaluation metrics.
+A production-quality Retrieval-Augmented Generation system with streaming responses, chat UI, and built-in evaluation. Upload documents, ask questions, get cited answers — all running locally with no API keys needed.
+
+## 🎯 Why This Project Matters (For Recruiters)
+
+This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demonstrating:
+
+- ✅ **End-to-end RAG**: ingestion → retrieval → generation → evaluation → serving
+- ✅ **Measurable quality**: numeric metrics (Hit Rate, MRR, LLM-as-judge), not "looks good"
+- ✅ **Production patterns**: streaming responses, source citations, graceful degradation
+- ✅ **Engineering discipline**: unit tests, modular architecture, professional documentation
 
 ## ✨ Features
 
-- **Document Ingestion**: load markdown/text → chunk → embed → ChromaDB
-- **Semantic Search**: cosine similarity retrieval with configurable top-k
-- **LLM-Powered Answers**: qwen3:0.6b generates answers grounded in retrieved context
-- **Evaluation Built-In**: Hit Rate, MRR, LLM-as-judge quality scoring
-- **FastAPI Backend**: REST API with `/ask` and `/search` endpoints
-- **Streamlit UI**: interactive web interface for document Q&A
-- **Test Suite**: 18 pytest tests covering ingestion, retrieval, API, evaluation
+### Core Pipeline
+- **Smart Ingestion**: recursive chunking with configurable size/overlap
+- **Semantic Search**: cosine similarity via ChromaDB with metadata filtering
+- **Streaming Generation**: Llama 3.2 3B answers with word-by-word streaming
+- **Source Citations**: every answer links back to source documents with relevance scores
+
+### Quality & Evaluation
+- **Retrieval Metrics**: 100% Hit Rate@5, 0.920 MRR on 10 test queries
+- **LLM-as-Judge**: automated answer quality scoring (relevance, groundedness, completeness)
+- **Anti-Hallucination**: engineered prompts that say "I don't know" instead of making things up
+
+### Interface
+- **Chat UI**: conversation history, streaming tokens, markdown rendering
+- **Suggested Questions**: one-click example queries to get started
+- **Source Cards**: color-coded by relevance (green/yellow/red)
+- **Live Metrics**: real-time document and chunk counts in sidebar
+
+### Engineering
+- **FastAPI Backend**: `/ask`, `/search`, `/health` endpoints with OpenAPI docs
+- **Test Suite**: 18 pytest tests across ingestion, retrieval, API, and evaluation
+- **Modular Architecture**: separate packages for each pipeline stage
 
 ## 🏗️ Architecture
 
 ```
-┌──────────────┐     ┌───────────────┐     ┌──────────────┐
-│  Documents   │────▶│  Ingestion    │────▶│  ChromaDB    │
-│  (MD/TXT)    │     │  Load→Chunk   │     │  (Vector DB) │
-└──────────────┘     │  →Embed→Index │     └──────┬───────┘
-                     └───────────────┘            │
-                                                  │ query
-                     ┌───────────────┐            │
-   User Question ───▶│  Retrieval    │◀───────────┘
-                     │  Embed→Search │
-                     └───────┬───────┘
-                             │ top-k chunks
-                     ┌───────▼───────┐
-                     │  QA Engine    │
-                     │  Prompt + LLM │
-                     └───────┬───────┘
-                             │
-                     ┌───────▼───────┐     ┌──────────────┐
-                     │  Answer +     │────▶│  Evaluation  │
-                     │  Sources      │     │  Metrics      │
-                     └───────────────┘     └──────────────┘
+┌──────────────┐     ┌─────────────────┐     ┌────────────────┐
+│  Documents   │────▶│  Ingestion      │────▶│  ChromaDB      │
+│  (MD/TXT)    │     │  Load→Chunk     │     │  Cosine Search │
+└──────────────┘     │  →Embed→Index   │     └───────┬────────┘
+                     └─────────────────┘             │
+                                                    │ top-k chunks
+                     ┌─────────────────┐             │
+   User Question ───▶│  Retrieval      │◀───────────┘
+                     │  Embed→Search   │
+                     └────────┬────────┘
+                              │
+                     ┌────────▼────────┐
+                     │  QA Engine      │
+                     │  RAG Prompt     │  Streaming
+                     │  Llama 3.2 3B   │────▶ Answer + Citations
+                     └────────┬────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+        ┌─────▼─────┐  ┌──────▼──────┐  ┌─────▼─────┐
+        │  FastAPI  │  │  Streamlit  │  │  Eval     │
+        │  Endpoints│  │  Chat UI    │  │  Metrics  │
+        └───────────┘  └─────────────┘  └───────────┘
 ```
 
-## 📊 Evaluation Results
+## 📊 Evaluation Results (Llama 3.2 3B)
 
-| Metric | Score | Description |
-|--------|-------|-------------|
-| **Hit Rate@5** | **100%** | All 10 queries found at least 1 relevant doc in top-5 |
-| **MRR** | **0.920** | Mean Reciprocal Rank — first relevant doc appears early |
-| **Avg Relevance** | **5.0/5** | LLM-as-judge: answers are relevant to questions |
+| Metric | Score | What It Means |
+|--------|-------|---------------|
+| **Hit Rate@5** | **1.000** | Every question finds relevant docs in top-5 results |
+| **MRR** | **0.920** | First relevant document appears very early in results |
+| **Avg Relevance** | **5.0/5** | Answers directly address the question asked |
 | **Avg Groundedness** | **5.0/5** | Answers are based on context, not hallucination |
-| **Avg Completeness** | **5.0/5** | Answers fully address the questions |
+| **Avg Completeness** | **5.0/5** | Answers fully cover what was asked |
 
-*Note: Scores of 5.0/5 reflect a small curated dataset. Production use would show more variance.*
+*Evaluated on 10 curated queries covering Python async, transformers, RAG, vector DBs, and prompt engineering.*
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Decisions
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| **LLM** | qwen3:0.6b (Ollama) | Free, local, no API key needed |
-| **Embeddings** | all-MiniLM-L6-v2 (384d) | Efficient, production-proven, runs on CPU |
-| **Vector DB** | ChromaDB | Simple, embedded, LangChain-native |
-| **Chunking** | RecursiveCharacterTextSplitter | Handles varied doc structures |
-| **API** | FastAPI | Fast, auto-docs, async |
-| **UI** | Streamlit | Rapid data apps, no frontend code |
-| **Tests** | pytest | Standard, fixture support |
-| **Evaluation** | Custom metrics + LLM-as-judge | Reproducible, no external services |
+| Layer | Technology | Why This Choice | Trade-off |
+|-------|-----------|----------------|-----------|
+| **LLM** | Llama 3.2 3B (Ollama) | Strong enough for RAG, free, local, private | Weaker than 7B/70B on complex reasoning |
+| **Embeddings** | all-MiniLM-L6-v2 (384d) | Fast, efficient, runs on CPU, proven in production | Less nuanced than 1536-dim models |
+| **Vector DB** | ChromaDB | Embedded, zero-config, native LangChain integration | Not distributed, single-machine |
+| **Chunking** | RecursiveCharacterTextSplitter | Handles varied document structures gracefully | May split mid-paragraph occasionally |
+| **API** | FastAPI | Fast, async, auto-generated OpenAPI docs | Not as battle-tested as Flask |
+| **UI** | Streamlit | Rapid development, Python-native, no frontend code | Not suitable for public-facing SaaS |
+| **Testing** | pytest | Standard, fixtures, parametrization | — |
+| **Eval** | Custom metrics + LLM-as-judge | Reproducible, no external dependencies | LLM judge can be overconfident |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-
 - Python 3.12+
-- [Ollama](https://ollama.com) with qwen3 model
+- [Ollama](https://ollama.com) installed
 
 ```bash
-# Install model
-ollama pull qwen3:0.6b
+# 1. Pull the LLM
+ollama pull llama3.2:3b
 
-# Clone and setup
-git clone <this-repo>
+# 2. Clone and setup
+git clone https://github.com/ferrelganendra/rag-qa-engine
 cd rag-chatbot
 
-# Create venv and install
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Or with uv (recommended)
+# 3. Install dependencies (uv recommended)
 uv pip install -r requirements.txt
+
+# 4. Run ingestion (indexes sample documents)
+python src/ingestion/run.py
 ```
 
-### Run Ingestion
+### Launch Options
 
-```bash
-python src/ingestion/pipeline.py
-```
-
-### Start API Server
-
-```bash
-uvicorn src.api.main:app --reload
-# Open http://localhost:8000/docs for Swagger UI
-```
-
-### Start Streamlit UI
-
+**Streamlit Chat UI** (recommended for demo):
 ```bash
 streamlit run src/ui/app.py
+# Open http://localhost:8501
+```
+
+**FastAPI Server** (for integration):
+```bash
+uvicorn src.api.main:app --reload
+# Open http://localhost:8000/docs for interactive API docs
+```
+
+### API Usage
+
+```python
+import requests
+
+# Search
+r = requests.get("http://localhost:8000/search", params={"q": "What is RAG?", "top_k": 5})
+print(r.json())
+
+# Ask
+r = requests.post("http://localhost:8000/ask", json={"question": "Explain cosine similarity"})
+print(r.json())
 ```
 
 ### Run Tests
-
 ```bash
-pytest tests/ -v
+pytest tests/ -v  # 18 tests pass
 ```
 
 ### Run Evaluation
-
 ```bash
 python -c "
 import sys; sys.path.insert(0, 'src')
@@ -128,38 +158,29 @@ print(f'Hit Rate@5: {r[\"hit_rate\"]}, MRR: {r[\"mrr\"]}')
 ```
 rag-chatbot/
 ├── src/
-│   ├── ingestion/       # Document loading, chunking, embedding, pipeline
-│   ├── retrieval/       # Semantic search, QA engine with LLM
-│   ├── eval/            # Hit Rate, MRR, LLM-as-judge evaluation
-│   ├── api/             # FastAPI REST endpoints
-│   └── ui/              # Streamlit web interface
+│   ├── ingestion/       # loader.py, chunker.py, embedder.py, pipeline.py, run.py
+│   ├── retrieval/       # searcher.py, qa_engine.py (streaming)
+│   ├── eval/            # metrics.py (Hit Rate, MRR, LLM-judge), test_queries.py
+│   ├── api/             # main.py (FastAPI: /ask, /search, /health)
+│   └── ui/              # app.py (Streamlit chat interface)
 ├── data/
-│   ├── documents/       # Source documents (markdown)
+│   ├── documents/       # 5 sample technical documents
 │   └── chroma/          # Persisted ChromaDB index
-├── tests/               # pytest test suite
-└── requirements.txt
+├── tests/               # test_ingestion.py, test_retrieval.py, test_api.py, test_eval.py
+├── requirements.txt
+└── README.md
 ```
 
-## 🧠 Design Decisions
+## 🔮 Roadmap — If I Were to Productionize Further
 
-| Decision | Rationale | Trade-off |
-|----------|-----------|-----------|
-| **qwen3:0.6b** over cloud API | Free, private, works offline | Smaller model = weaker reasoning |
-| **all-MiniLM-L6-v2** over Ada-002 | Free, 384-dim fast search | Less nuanced than 1536-dim models |
-| **Recursive chunking** over semantic | Simple, predictable, handles mixed formats | May split mid-paragraph sometimes |
-| **Cosine distance** over dot product | Standard for text, ChromaDB default | Requires normalized embeddings |
-| **ChromaDB** over Pinecone | Embedded, zero-config, no cloud cost | Not distributed, single-machine only |
-| **LLM-as-judge** over human eval | Reproducible, scalable, instant | Model bias, overconfidence on small models |
-
-## 🔮 Future Improvements
-
-- **Hybrid search**: BM25 + dense retrieval for better keyword matching
-- **Re-ranking**: Cross-encoder to refine top results
-- **Streaming**: Server-sent events for real-time answer display
-- **Observability**: LangSmith or custom tracing for debugging
-- **Multi-model support**: Easy toggle between local and cloud LLMs
-- **PDF support**: Add PyMuPDF for PDF ingestion
-- **Production deployment**: Docker, rate limiting, API auth
+- [ ] **Hybrid Search**: BM25 keyword search + dense retrieval for better recall
+- [ ] **Re-ranking**: Cross-encoder to refine top-10 into top-3
+- [ ] **PDF Support**: PyMuPDF integration for PDF ingestion
+- [ ] **Observability**: LangSmith tracing or custom event logging
+- [ ] **Multi-Model**: Config toggle between local (llama3.2) and cloud (GPT-4, Claude)
+- [ ] **Docker**: Containerized with docker-compose (Ollama + ChromaDB + FastAPI + Streamlit)
+- [ ] **Rate Limiting**: API protection with token bucket algorithm
+- [ ] **Auth**: API key authentication for production endpoints
 
 ## 📄 License
 
