@@ -2,6 +2,7 @@
 
 import os
 import sys
+from html import escape
 from pathlib import Path
 
 import streamlit as st
@@ -369,12 +370,12 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar=avatar):
         if msg["role"] == "user":
             st.markdown(
-                f'<div class="chat-bubble-user">{msg["content"]}</div>',
+                f'<div class="chat-bubble-user">{escape(msg["content"])}</div>',
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                f'<div class="chat-bubble-assistant">{msg["content"]}</div>',
+                f'<div class="chat-bubble-assistant">{escape(msg["content"])}</div>',
                 unsafe_allow_html=True,
             )
 
@@ -401,10 +402,10 @@ for msg in st.session_state.messages:
                     source_html += (
                         f'<div class="{card_class}">'
                         f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-                        f'<span class="doc-title">{s["document"]}</span>'
+                        f'<span class="doc-title">{escape(s["document"])}</span>'
                         f'<span class="doc-score">{s["score"]:.3f}</span>'
                         f'</div>'
-                        f'<div class="doc-preview">{s["preview"]}</div>'
+                        f'<div class="doc-preview">{escape(s["preview"])}</div>'
                         f'<div class="score-bar"><div class="score-bar-fill" style="width:{bar_width};background:{bar_color};"></div></div>'  # noqa: E501
                         f'</div>'
                     )
@@ -416,7 +417,7 @@ if prompt := st.chat_input("Ask a question..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="🧑"):
         st.markdown(
-            f'<div class="chat-bubble-user">{prompt}</div>',
+            f'<div class="chat-bubble-user">{escape(prompt)}</div>',
             unsafe_allow_html=True,
         )
 
@@ -475,15 +476,15 @@ if prompt := st.chat_input("Ask a question..."):
                 source_html += (
                     f'<div class="{card_class}">'
                     f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-                    f'<span class="doc-title">{s["document"]}</span>'
+                    f'<span class="doc-title">{escape(s["document"])}</span>'
                     f'<span class="doc-score">{s["score"]:.3f}</span>'
                     f'</div>'
-                    f'<div class="doc-preview">{preview}</div>'
+                    f'<div class="doc-preview">{escape(preview)}</div>'
                     f'<div class="score-bar"><div class="score-bar-fill" style="width:{bar_width};background:{bar_color};"></div></div>'  # noqa: E501
                     f'</div>'
                 )
 
-        final_html = f'<div class="chat-bubble-assistant">{full}</div>'
+        final_html = f'<div class="chat-bubble-assistant">{escape(full)}</div>'
         if source_html:
             final_html += (
                 '<div style="margin-top:0.8rem;">'

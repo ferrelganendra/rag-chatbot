@@ -56,3 +56,17 @@ def test_ask_unknown_handled(client):
     assert r.status_code == 200
     data = r.json()
     assert len(data["answer"]) > 5
+
+def test_ask_empty_question_422(client):
+    r = client.post("/ask", json={"question": ""})
+    assert r.status_code == 422
+
+def test_ask_top_k_out_of_range_422(client):
+    r = client.post("/ask", json={"question": "hi", "top_k": 0})
+    assert r.status_code == 422
+    r = client.post("/ask", json={"question": "hi", "top_k": 100})
+    assert r.status_code == 422
+
+def test_search_empty_query_422(client):
+    r = client.get("/search?q=")
+    assert r.status_code == 422

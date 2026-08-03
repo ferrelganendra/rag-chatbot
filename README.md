@@ -25,7 +25,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 - **Source Citations**: every answer links back to source documents with relevance scores
 
 ### Quality & Evaluation
-- **Retrieval Metrics**: 100% Hit Rate@5, 0.920 MRR on 10 test queries
+- **Retrieval Metrics**: 90% Hit Rate@5, 0.775 MRR on 10 test queries
 - **LLM-as-Judge**: automated answer quality scoring (relevance, groundedness, completeness)
 - **Anti-Hallucination**: engineered prompts that say "I don't know" instead of making things up
 
@@ -37,7 +37,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 
 ### Engineering
 - **FastAPI Backend**: `/ask`, `/ask/stream`, `/search`, `/health` endpoints with OpenAPI docs
-- **Test Suite**: 21 pytest tests across ingestion, retrieval, API, and evaluation
+- **Test Suite**: 24 pytest tests across ingestion, retrieval, API, and evaluation
 - **Modular Architecture**: separate packages for each pipeline stage
 
 ## 🏗️ Architecture
@@ -72,13 +72,10 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 
 | Metric | Score | What It Means |
 |--------|-------|---------------|
-| **Hit Rate@5** | **1.000** | Every question finds relevant docs in top-5 results |
-| **MRR** | **0.920** | First relevant document appears very early in results |
-| **Avg Relevance** | **5.0/5** | Answers directly address the question asked |
-| **Avg Groundedness** | **5.0/5** | Answers are based on context, not hallucination |
-| **Avg Completeness** | **5.0/5** | Answers fully cover what was asked |
+| **Hit Rate@5** | **0.9** | 90% of questions find a relevant doc in top-5 results |
+| **MRR** | **0.775** | First relevant document appears early in results (avg. rank ~1.3) |
 
-*Evaluated on 10 curated queries covering Python async, transformers, RAG, vector DBs, and prompt engineering.*
+*Evaluated on 10 curated queries covering Python async, transformers, RAG, vector DBs, and prompt engineering. LLM-as-judge scores (relevance/groundedness/completeness) are not listed because no reproducible harness artifact exists for them.*
 
 ## 🛠️ Tech Stack & Decisions
 
@@ -157,7 +154,7 @@ with requests.post("http://localhost:8000/ask/stream", json={"question": "Explai
 
 ### Run Tests
 ```bash
-pytest tests/ -v  # 21 tests pass
+pytest tests/ -v  # 24 tests pass
 ```
 
 ### Run Evaluation
@@ -198,7 +195,7 @@ rag-chatbot/
 │   ├── api/             # main.py (FastAPI: /ask, /ask/stream, /search, /health)
 │   └── ui/              # app.py (Streamlit chat interface)
 ├── data/
-│   ├── documents/       # 5 sample technical documents
+│   ├── documents/       # 7 sample technical documents (5 md + 2 pdf)
 │   └── chroma/          # Persisted ChromaDB index
 ├── tests/               # test_ingestion.py, test_retrieval.py, test_api.py, test_eval.py
 ├── requirements.txt

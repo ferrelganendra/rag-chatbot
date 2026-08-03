@@ -4,9 +4,9 @@ import json
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import settings
 from metrics import (
@@ -49,13 +49,13 @@ app = FastAPI(
 
 
 class QuestionRequest(BaseModel):
-    question: str
-    top_k: int = 5
+    question: str = Field(..., min_length=1, max_length=2000)
+    top_k: int = Field(5, ge=1, le=20)
 
 
 class AskStreamRequest(BaseModel):
-    question: str
-    top_k: int = 5
+    question: str = Field(..., min_length=1, max_length=2000)
+    top_k: int = Field(5, ge=1, le=20)
 
 
 class SourceInfo(BaseModel):
@@ -161,7 +161,10 @@ async def ask_stream(req: AskStreamRequest):
 
 
 @app.get("/search")
-async def search(q: str, top_k: int = 5):
+async def search(
+    q: str = Query(..., min_length=1, max_length=2000),
+    top_k: int = Query(5, ge=1, le=20),
+):
     if searcher is None:
         return JSONResponse(
             status_code=503,

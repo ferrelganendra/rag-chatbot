@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# If a command was passed (docker-compose per-service `command:`), run only that.
+if [ $# -gt 0 ]; then
+  exec "$@"
+fi
+
 echo ">>> DocQ — Ingestion Start"
 python src/ingestion/run.py
 echo ">>> Ingestion Complete"

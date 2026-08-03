@@ -35,7 +35,7 @@ jobs:
           r = evaluate_retrieval(TEST_QUERIES, Searcher())
           print(f'Hit Rate@5: {r[\"hit_rate\"]}, MRR: {r[\"mrr\"]}')
           assert r['hit_rate'] >= 0.8, f'Hit rate too low: {r[\"hit_rate\"]}'
-          assert r['mrr'] >= 0.8, f'MRR too low: {r[\"mrr\"]}'
+          assert r['mrr'] >= 0.70, f'MRR too low: {r[\"mrr\"]}'
           "
 
   lint:

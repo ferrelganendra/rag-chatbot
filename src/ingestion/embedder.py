@@ -15,4 +15,5 @@ class Embedder:
 
     @property
     def dim(self) -> int:
-        return self.model.get_embedding_dimension()
+        # sentence-transformers is pinned (==3.4.1) so this API name is stable.
+        return self.model.get_sentence_embedding_dimension()
