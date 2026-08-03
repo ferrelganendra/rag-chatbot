@@ -1,10 +1,14 @@
 """FastAPI server for RAG QA endpoints."""
 
 import json
+import logging
+import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -18,6 +22,8 @@ from metrics import (
 )
 from retrieval.qa_engine import QAEngine
 from retrieval.searcher import Searcher
+
+logger = logging.getLogger(__name__)
 
 engine: QAEngine | None = None
 searcher: Searcher | None = None
@@ -47,6 +53,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: default allow localhost; override via RAG_CORS_ORIGINS env (comma-separated).
+# NOTE: open for local demo by default. For public deployment, add auth + rate limiting.
+_origins = [o.strip() for o in os.environ.get("RAG_CORS_ORIGINS", "").split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins or ["http://localhost:8501", "http://localhost:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class QuestionRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
@@ -71,19 +88,22 @@ class AnswerResponse(BaseModel):
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
+    logger.exception("ValueError: %s", exc)
     return JSONResponse(
         status_code=400,
-        content={"error": str(exc)},
+        content={"error": "Invalid request. Please check your input and try again."},
     )
 
 
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception):
+    trace_id = uuid.uuid4().hex[:8]
+    logger.exception("Unhandled error (trace_id=%s): %s", trace_id, exc)
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal server error",
-            "detail": str(exc),
+            "trace_id": trace_id,
         },
     )
 
@@ -98,6 +118,9 @@ async def health():
 
 @app.get("/metrics")
 async def metrics():
+    # NOTE: no auth + no rate limiting on /ask, /search, /metrics.
+    # Open is fine for a local demo (README "Security Notes"); for any public
+    # deployment, add API-key auth and rate limiting before exposing.
     return Response(content=get_metrics(), media_type="text/plain")
 
 

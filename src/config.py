@@ -21,7 +21,8 @@ class Settings:
     # Retrieval
     default_top_k: int = 5
     
-    # LLM
+    # LLM — default is Groq 70B (cloud, needs GROQ_API_KEY); falls back to
+    # local Ollama llama3.2:3b via QAEngine auto-detection when no key is set.
     default_model_key: str = "groq-70b"
     temperature: float = 0.3
     max_tokens: int = 800

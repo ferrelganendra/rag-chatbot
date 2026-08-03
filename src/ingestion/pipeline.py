@@ -8,6 +8,7 @@ from config import settings
 from ingestion.chunker import chunk_documents
 from ingestion.embedder import Embedder
 from ingestion.loader import load_documents
+from metrics import index_chunks_total, index_documents_total
 
 logger = logging.getLogger(__name__)
 
@@ -66,4 +67,6 @@ def run_ingestion(
         )
 
     logger.info(f"  Indexed {collection.count()} chunks")
+    index_chunks_total.set(collection.count())
+    index_documents_total.set(len(docs))
     return len(docs), len(chunks)

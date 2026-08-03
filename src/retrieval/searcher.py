@@ -16,13 +16,19 @@ class SearchResult:
     score: float
 
 class Searcher:
+    """Semantic search over a ChromaDB collection.
+
+    `client` (optional) allows injecting a pre-built ChromaDB client (e.g. a
+    tmp_path-backed PersistentClient in tests) for hermetic, isolated runs.
+    """
     def __init__(
         self,
         chroma_path: str | None = None,
         collection_name: str | None = None,
         model_name: str | None = None,
+        client: chromadb.ClientAPI | None = None,
     ):
-        self.client = chromadb.PersistentClient(
+        self.client = client or chromadb.PersistentClient(
             path=chroma_path or settings.chroma_path
         )
         try:

@@ -2,7 +2,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/chroma/
-src/data/chroma/
 .venv/
 .env
 .DS_Store

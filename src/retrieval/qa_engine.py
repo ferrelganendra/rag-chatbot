@@ -139,16 +139,18 @@ class QAEngine:
             parts.append(f"[{i+1}. {r.source}]\n{r.text}")
         return "\n\n---\n\n".join(parts)
 
-    @with_retry
-    def answer(self, question: str) -> dict:
-        results = self.searcher.search(question, top_k=self.top_k)
-        context = self._format_context(results)
-
-        prompt_text = (
+    def _build_prompt(self, question: str, context: str) -> str:
+        return (
             f"{SYSTEM_PROMPT}\n\n"
             f"Context documents:\n{context}\n\n"
             f"Question: {question}"
         )
+
+    @with_retry
+    def answer(self, question: str) -> dict:
+        results = self.searcher.search(question, top_k=self.top_k)
+        context = self._format_context(results)
+        prompt_text = self._build_prompt(question, context)
         response = self.llm.invoke([HumanMessage(content=prompt_text)])
 
         return {
@@ -163,12 +165,7 @@ class QAEngine:
     def answer_stream(self, question: str) -> Generator[Any, None, None]:
         results = self.searcher.search(question, top_k=self.top_k)
         context = self._format_context(results)
-
-        prompt_text = (
-            f"{SYSTEM_PROMPT}\n\n"
-            f"Context documents:\n{context}\n\n"
-            f"Question: {question}"
-        )
+        prompt_text = self._build_prompt(question, context)
 
         tokens = []
         for chunk in self.llm.stream([HumanMessage(content=prompt_text)]):

@@ -1,7 +1,7 @@
 # ⚡ DocQ — Production-Grade RAG QA Engine
 
 [![CI](https://github.com/ferrelganendra/rag-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/ferrelganendra/rag-chatbot/actions/workflows/ci.yml)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 
@@ -21,7 +21,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 ### Core Pipeline
 - **Smart Ingestion**: recursive chunking with configurable size/overlap
 - **Semantic Search**: cosine similarity via ChromaDB with metadata filtering
-- **Streaming Generation**: Llama 3.2 3B answers with word-by-word streaming
+- **Streaming Generation**: word-by-word streaming answers (Groq 70B by default, local Ollama fallback)
 - **Source Citations**: every answer links back to source documents with relevance scores
 
 ### Quality & Evaluation
@@ -37,7 +37,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 
 ### Engineering
 - **FastAPI Backend**: `/ask`, `/ask/stream`, `/search`, `/health` endpoints with OpenAPI docs
-- **Test Suite**: 24 pytest tests across ingestion, retrieval, API, and evaluation
+- **Test Suite**: hermetic pytest suite across ingestion, retrieval, API, and evaluation
 - **Modular Architecture**: separate packages for each pipeline stage
 
 ## 🏗️ Architecture
@@ -55,9 +55,9 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
                      └────────┬────────┘
                               │
                      ┌────────▼────────┐
-                     │  QA Engine      │
-                     │  RAG Prompt     │  Streaming
-                     │  Llama 3.2 3B   │────▶ Answer + Citations
+│  QA Engine      │
+                      │  RAG Prompt     │  Streaming
+                      │  Groq 70B       │────▶ Answer + Citations
                      └────────┬────────┘
                               │
               ┌───────────────┼───────────────┐
@@ -68,7 +68,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
         └───────────┘  └─────────────┘  └───────────┘
 ```
 
-## 📊 Evaluation Results (Llama 3.2 3B)
+## 📊 Evaluation Results (all-MiniLM-L6-v2 retrieval)
 
 | Metric | Score | What It Means |
 |--------|-------|---------------|
@@ -81,7 +81,7 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 
 | Layer | Technology | Why This Choice | Trade-off |
 |-------|-----------|----------------|-----------|
-| **LLM** | Llama 3.2 3B (Ollama) | Strong enough for RAG, free, local, private | Weaker than 7B/70B on complex reasoning |
+| **LLM** | Groq Llama 3.3 70B (default) / Llama 3.2 3B (local Ollama) | 70B via free Groq tier for quality; local 3B fallback for private/offline | Cloud needs API key |
 | **Embeddings** | all-MiniLM-L6-v2 (384d) | Fast, efficient, runs on CPU, proven in production | Less nuanced than 1536-dim models |
 | **Vector DB** | ChromaDB | Embedded, zero-config, native LangChain integration | Not distributed, single-machine |
 | **Chunking** | RecursiveCharacterTextSplitter | Handles varied document structures gracefully | May split mid-paragraph occasionally |
@@ -93,21 +93,27 @@ This isn't a notebook tutorial. It's a **complete AI engineering pipeline** demo
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.12+
-- [Ollama](https://ollama.com) installed
+- Python 3.11+
+- **Cloud (default)**: a [Groq](https://console.groq.com) API key (free tier) → `export GROQ_API_KEY=...`, or `GOOGLE_API_KEY` for Gemini.
+- **Local (fallback)**: [Ollama](https://ollama.com) installed with `llama3.2:3b`.
+
+> If you run a cloud model, set `GROQ_API_KEY` (and/or `GOOGLE_API_KEY`) **before** starting the app. Without any key, the app auto-detects Ollama locally (and errors clearly if nothing is available). Gemini is selected explicitly in the UI if `GOOGLE_API_KEY` is set. The default model is Groq 70B.
 
 ```bash
-# 1. Pull the LLM
+# 1. (Cloud) set your API key
+export GROQ_API_KEY="gsk_..."
+
+# 2. (Local fallback) pull the LLM
 ollama pull llama3.2:3b
 
-# 2. Clone and setup
+# 3. Clone and setup
 git clone https://github.com/ferrelganendra/rag-chatbot
 cd rag-chatbot
 
-# 3. Install dependencies (uv recommended)
-uv pip install -r requirements.txt
+# 4. Install dependencies
+uv pip install -r requirements.txt   # or: pip install -r requirements.txt
 
-# 4. Run ingestion (indexes sample documents)
+# 5. Run ingestion (indexes sample documents)
 python src/ingestion/run.py
 ```
 
@@ -154,7 +160,7 @@ with requests.post("http://localhost:8000/ask/stream", json={"question": "Explai
 
 ### Run Tests
 ```bash
-pytest tests/ -v  # 24 tests pass
+pytest tests/ -v  # hermetic — no Ollama/Chroma index needed
 ```
 
 ### Run Evaluation
@@ -174,7 +180,7 @@ print(f'Hit Rate@5: {r[\"hit_rate\"]}, MRR: {r[\"mrr\"]}')
 # Setup
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-ollama pull llama3.2:3b
+export GROQ_API_KEY="gsk_..."   # cloud default; or: ollama pull llama3.2:3b
 
 # Run pipeline
 python src/ingestion/run.py
@@ -210,8 +216,16 @@ rag-chatbot/
 - [ ] **Observability**: LangSmith tracing or custom event logging
 - [ ] **Multi-Model**: Config toggle between local (llama3.2) and cloud (GPT-4, Claude)
 - [x] **Docker**: Containerized with docker-compose (FastAPI + Streamlit)
-- [ ] **Rate Limiting**: API protection with token bucket algorithm
+- [ ] **Rate Limiting**: API protection with token bucket algorithm (see Security Notes)
 - [ ] **Auth**: API key authentication for production endpoints
+
+## 🔒 Security Notes
+
+- The FastAPI server (`/ask`, `/ask/stream`, `/search`, `/metrics`) has **no auth and no rate limiting** — fine for a local demo, not for public exposure.
+- CORS defaults to `localhost:8501`/`localhost:8000`; override with `RAG_CORS_ORIGINS` (comma-separated).
+- Before any public deployment: add API-key auth (or OAuth), rate limiting, and TLS termination.
+- Error handlers log full exceptions server-side and return generic messages + a `trace_id` to clients — no internal details leaked.
+- `/metrics` exposes internal Prometheus counters — keep it behind the same auth as the rest when going public.
 
 ## 📄 License
 
