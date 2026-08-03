@@ -3,11 +3,13 @@
 import json
 import logging
 import os
+import secrets
 import time
 import uuid
+from collections import deque
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -32,6 +34,11 @@ searcher: Searcher | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global engine, searcher
+    if not settings.rag_api_keys:
+        logger.warning(
+            "RAG_API_KEYS not set — API auth DISABLED. All endpoints except /health "
+            "are open. Set RAG_API_KEYS for production."
+        )
     searcher = Searcher(
         chroma_path=settings.chroma_path,
         collection_name=settings.collection_name,
@@ -54,7 +61,7 @@ app = FastAPI(
 )
 
 # CORS: default allow localhost; override via RAG_CORS_ORIGINS env (comma-separated).
-# NOTE: open for local demo by default. For public deployment, add auth + rate limiting.
+# For public deployment, add auth + rate limiting (see below).
 _origins = [o.strip() for o in os.environ.get("RAG_CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -63,6 +70,66 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Auth ────────────────────────────────────────────────────────────
+# RAG_API_KEYS (comma-separated). Empty env -> auth disabled (local demo).
+# All endpoints except /health and /docs require `Authorization: Bearer <key>`
+# or `X-API-Key: <key>`. Comparison is constant-time (secrets.compare_digest).
+_authorized = {k: True for k in settings.rag_api_keys}
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort real client IP (respects X-Forwarded-For behind a proxy)."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+async def require_api_key(request: Request):
+    if not _authorized:
+        return None
+    key = request.headers.get("authorization", "")
+    supplied = (
+        key[7:].strip()
+        if key.lower().startswith("bearer ")
+        else request.headers.get("x-api-key", "")
+    )
+    if supplied and any(
+        secrets.compare_digest(supplied, k) for k in _authorized
+    ):
+        return None
+    raise HTTPException(status_code=401, detail="unauthorized")
+
+
+# ── Rate limiting ───────────────────────────────────────────────────
+# In-memory sliding window per IP (stdlib only: time + deque). State resets
+# on process restart — fine for demo; swap for Redis in multi-instance prod.
+_hits: dict[str, deque] = {}
+
+
+def _rate_limit(request: Request):
+    if settings.rag_rate_limit <= 0:
+        return
+    now = time.monotonic()
+    window = 60.0
+    ip = _client_ip(request)
+    stamps = _hits.setdefault(ip, deque())
+    while stamps and now - stamps[0] >= window:
+        stamps.popleft()
+    if len(stamps) >= settings.rag_rate_limit:
+        retry_after = int(window - (now - stamps[0])) + 1
+        raise HTTPException(
+            status_code=429,
+            detail="rate limit exceeded. Try again shortly.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    stamps.append(now)
+
+
+def reset_rate_limit_store() -> None:
+    """Clear per-IP request history (used by tests between cases)."""
+    _hits.clear()
 
 
 class QuestionRequest(BaseModel):
@@ -117,15 +184,18 @@ async def health():
 
 
 @app.get("/metrics")
-async def metrics():
-    # NOTE: no auth + no rate limiting on /ask, /search, /metrics.
-    # Open is fine for a local demo (README "Security Notes"); for any public
-    # deployment, add API-key auth and rate limiting before exposing.
+async def metrics(_: object = Depends(require_api_key)):
+    # Internal-only: behind the same API-key auth as /ask, /search. No rate limit
+    # (monitoring should not be throttled).
     return Response(content=get_metrics(), media_type="text/plain")
 
 
 @app.post("/ask", response_model=AnswerResponse)
-async def ask(req: QuestionRequest):
+async def ask(
+    req: QuestionRequest,
+    _: object = Depends(require_api_key),
+    _rate: object = Depends(_rate_limit),
+):
     if engine is None:
         return JSONResponse(
             status_code=503,
@@ -156,7 +226,11 @@ async def ask(req: QuestionRequest):
 
 
 @app.post("/ask/stream")
-async def ask_stream(req: AskStreamRequest):
+async def ask_stream(
+    req: AskStreamRequest,
+    _: object = Depends(require_api_key),
+    _rate: object = Depends(_rate_limit),
+):
     if engine is None:
         return JSONResponse(
             status_code=503,
@@ -187,6 +261,8 @@ async def ask_stream(req: AskStreamRequest):
 async def search(
     q: str = Query(..., min_length=1, max_length=2000),
     top_k: int = Query(5, ge=1, le=20),
+    _: object = Depends(require_api_key),
+    _rate: object = Depends(_rate_limit),
 ):
     if searcher is None:
         return JSONResponse(

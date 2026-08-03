@@ -12,6 +12,9 @@ from retrieval.searcher import SearchResult
 
 @pytest.fixture(autouse=True)
 def setup():
+    from api.main import reset_rate_limit_store
+
+    reset_rate_limit_store()
     mock_searcher = MagicMock()
     mock_searcher.search.return_value = [
         SearchResult(text="chunk text about transformers...", source="transformer-architecture.md", score=0.95),
@@ -190,3 +193,90 @@ def test_with_retry_does_not_retry_non_transient(monkeypatch):
     with pytest.raises(RuntimeError):
         nope()
     assert attempts["n"] == 1
+
+
+# ── Auth (RAG_API_KEYS) ─────────────────────────────────────────────
+
+AUTH_KEYS = {"test-key-1", "test-key-2"}
+
+
+def test_auth_disabled_without_key_allows_all(client):
+    """Env empty (auth off) -> endpoints open, like the demo path."""
+    assert not api_mod._authorized
+    r = client.get("/search?q=transformer")
+    assert r.status_code == 200
+
+
+def test_auth_missing_key_401(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    for method, url, body in [
+        ("get", "/search?q=transformer", None),
+        ("post", "/ask", {"question": "What is RAG?", "top_k": 3}),
+        ("post", "/ask/stream", {"question": "What is RAG?", "top_k": 3}),
+        ("get", "/metrics", None),
+    ]:
+        r = getattr(client, method)(url, json=body) if body else getattr(client, method)(url)
+        assert r.status_code == 401, (method, url)
+
+
+def test_auth_wrong_key_401(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    r = client.get("/search?q=transformer", headers={"Authorization": "Bearer wrong-key"})
+    assert r.status_code == 401
+    assert "unauthorized" in r.json().get("error", r.json().get("detail", ""))
+
+
+def test_auth_x_api_key_header_works(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    r = client.get("/search?q=transformer", headers={"X-API-Key": "test-key-1"})
+    assert r.status_code == 200
+
+
+def test_auth_bearer_key_works(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    r = client.get("/search?q=transformer", headers={"Authorization": "Bearer test-key-2"})
+    assert r.status_code == 200
+
+
+def test_auth_health_public_when_auth_active(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    r = client.get("/health")
+    assert r.status_code == 200
+
+
+def test_auth_ask_with_valid_key_200(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    r = client.post(
+        "/ask",
+        json={"question": "What is RAG?", "top_k": 3},
+        headers={"Authorization": "Bearer test-key-1"},
+    )
+    assert r.status_code == 200
+
+
+def test_auth_metrics_requires_key(client, monkeypatch):
+    """/metrics is internal-only: 401 without key even when auth enabled."""
+    monkeypatch.setattr(api_mod, "_authorized", AUTH_KEYS)
+    r = client.get("/metrics")
+    assert r.status_code == 401
+
+
+# ── Rate limiting (RAG_RATE_LIMIT) ──────────────────────────────────
+
+def test_rate_limit_429_with_retry_after(client, monkeypatch):
+    monkeypatch.setattr(api_mod, "settings", type("S", (), {"rag_rate_limit": 3})())
+    monkeypatch.setattr(api_mod, "_authorized", set())
+    for _ in range(3):
+        r = client.get("/search?q=transformer")
+        assert r.status_code == 200
+    r = client.get("/search?q=transformer")
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) >= 1
+
+
+def test_rate_limit_resets_between_tests(client, monkeypatch):
+    """reset_rate_limit_store() in the autouse fixture clears state."""
+    monkeypatch.setattr(api_mod, "settings", type("S", (), {"rag_rate_limit": 2})())
+    monkeypatch.setattr(api_mod, "_authorized", set())
+    r = client.get("/search?q=transformer")
+    assert r.status_code == 200  # fresh store, not throttled by prior test

@@ -1,6 +1,7 @@
 """Centralized configuration for DocQ RAG engine."""
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -33,6 +34,22 @@ class Settings:
 
     # Batch size for ChromaDB indexing
     chroma_batch_size: int = 100
+
+    # API security
+    # RAG_API_KEYS: comma-separated API keys. Empty/None -> auth disabled (local demo).
+    # RAG_RATE_LIMIT: requests per minute per IP for /ask, /ask/stream, /search.
+    rag_api_keys: list[str] = field(default_factory=list)
+    rag_rate_limit: int = 60
+
+    def __post_init__(self):
+        raw = os.environ.get("RAG_API_KEYS", "").strip()
+        self.rag_api_keys = [k.strip() for k in raw.split(",") if k.strip()]
+        try:
+            self.rag_rate_limit = int(os.environ.get("RAG_RATE_LIMIT", "60"))
+        except ValueError:
+            self.rag_rate_limit = 60
+        if self.rag_rate_limit < 1:
+            self.rag_rate_limit = 60
 
     @property
     def project_root(self) -> Path:

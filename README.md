@@ -133,21 +133,26 @@ uvicorn src.api.main:app --reload
 
 ### API Usage
 
+If API auth is enabled (`RAG_API_KEYS` set), include the key in every request
+except `/health` and `/docs`:
+
 ```python
 import requests
 
+HEADERS = {"Authorization": "Bearer <your-api-key>"}  # or {"X-API-Key": "..."}
+
 # Search
-r = requests.get("http://localhost:8000/search", params={"q": "What is RAG?", "top_k": 5})
+r = requests.get("http://localhost:8000/search", params={"q": "What is RAG?", "top_k": 5}, headers=HEADERS)
 print(r.json())
 
 # Ask (full response)
-r = requests.post("http://localhost:8000/ask", json={"question": "Explain cosine similarity"})
+r = requests.post("http://localhost:8000/ask", json={"question": "Explain cosine similarity"}, headers=HEADERS)
 print(r.json())
 
 # Streaming ask (SSE)
 import requests, json
 
-with requests.post("http://localhost:8000/ask/stream", json={"question": "Explain cosine similarity"}, stream=True) as r:
+with requests.post("http://localhost:8000/ask/stream", json={"question": "Explain cosine similarity"}, headers=HEADERS, stream=True) as r:
     for line in r.iter_lines():
         if line:
             line = line.decode()
@@ -157,6 +162,8 @@ with requests.post("http://localhost:8000/ask/stream", json={"question": "Explai
                     break
                 print(json.loads(data).get("token", ""), end="", flush=True)
 ```
+
+With auth disabled (no `RAG_API_KEYS`), the same calls work without headers.
 
 ### Run Tests
 ```bash
@@ -216,16 +223,25 @@ rag-chatbot/
 - [ ] **Observability**: LangSmith tracing or custom event logging
 - [ ] **Multi-Model**: Config toggle between local (llama3.2) and cloud (GPT-4, Claude)
 - [x] **Docker**: Containerized with docker-compose (FastAPI + Streamlit)
-- [ ] **Rate Limiting**: API protection with token bucket algorithm (see Security Notes)
-- [ ] **Auth**: API key authentication for production endpoints
+- [x] **Rate Limiting**: API protection with sliding-window algorithm (see Security Notes)
+- [x] **Auth**: API key authentication for production endpoints
 
 ## 🔒 Security Notes
 
-- The FastAPI server (`/ask`, `/ask/stream`, `/search`, `/metrics`) has **no auth and no rate limiting** — fine for a local demo, not for public exposure.
+- **API-key auth** (optional): set `RAG_API_KEYS` (comma-separated) to require
+  `Authorization: Bearer <key>` (or `X-API-Key`) on `/ask`, `/ask/stream`,
+  `/search`, and `/metrics`. `/health` stays public. When the env var is empty
+  or unset, auth is **disabled** (local demo) and a warning is logged once at
+  startup. Keys are compared in constant time (`secrets.compare_digest`).
+- **Rate limiting**: `RAG_RATE_LIMIT` (default `60`) is the per-IP limit per
+  minute applied to `/ask`, `/ask/stream`, `/search`. Excess requests get
+  `429` + `Retry-After`. Implemented as an in-memory sliding window (stdlib
+  only) that resets on process restart — swap for Redis for multi-instance
+  production.
 - CORS defaults to `localhost:8501`/`localhost:8000`; override with `RAG_CORS_ORIGINS` (comma-separated).
-- Before any public deployment: add API-key auth (or OAuth), rate limiting, and TLS termination.
+- Before any public deployment: add TLS termination.
 - Error handlers log full exceptions server-side and return generic messages + a `trace_id` to clients — no internal details leaked.
-- `/metrics` exposes internal Prometheus counters — keep it behind the same auth as the rest when going public.
+- `/metrics` exposes internal Prometheus counters — it is protected by the same API-key auth as the rest of the API.
 
 ## 📄 License
 
